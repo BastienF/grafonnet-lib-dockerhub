@@ -1,25 +1,24 @@
-# Install required libraries 
-FROM golang:1.11.1-alpine AS builder
+# Install required libraries
+FROM golang:1.15-alpine3.12 AS builder
 
-RUN apk add --no-cache git=2.18.1-r0 build-base=0.5-r1 && \
-    rm -rf /var/lib/apt/lists/* 
+RUN apk add --no-cache curl git=2.26.2-r0 && \
+    rm -rf /var/lib/apt/lists/*
 
-RUN git clone https://github.com/google/jsonnet.git && \
-    make -C jsonnet 
-    
-RUN go get github.com/jsonnet-bundler/jsonnet-bundler/cmd/jb && \
-    jb init && \
-    jb install https://github.com/grafana/grafonnet-lib/grafonnet
+RUN go get github.com/google/go-jsonnet/cmd/jsonnet
+
+RUN curl -L https://github.com/grafana/grafonnet-lib/archive/v0.1.0.tar.gz | tar -xz && \
+    mkdir /go/vendor && \
+    mv grafonnet-lib-0.1.0/grafonnet /go/vendor/grafonnet
 
 # Create image for dashboard generation
-FROM alpine:3.8 
-
-RUN apk add --no-cache libstdc++=6.4.0-r9 ca-certificates
+FROM alpine:3.12
 
 WORKDIR /dashboards
 
 COPY --from=builder /go/vendor vendor
-COPY --from=builder /go/jsonnet/jsonnet /usr/local/bin/
+COPY --from=builder /go/bin/jsonnet /usr/local/bin/
 
 ENV JSONNET_PATH=/dashboards/vendor
+ENV GRAFONNET_LIB_PATH=/dashboards/vendor/grafonnet/
+
 CMD [ "jsonnet", "-" ]
